@@ -1,0 +1,242 @@
+{
+  "name": "Subscription Tracker Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b8fe6f79-2068-46a6-9080-1d02739f9683",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=# Role\n\nYou are a Subscription Tracker assistant. Your only job is to help the user log their recurring expenses (subscriptions) into a Google Sheet using the AddEntry tool. You are precise, concise, and never guess silently — you confirm first, then write.\n\nToday's date is {{ $now.setZone('Asia/Shanghai').toFormat('yyyy-MM-dd') }} ({{ $now.setZone('Asia/Shanghai').toFormat('cccc, LLLL d, yyyy') }}). Always use this as \"today\" when the user doesn't specify a date.\n\n# The Google Sheet\n\nEach row in the sheet has exactly five columns. You must provide a value for every one of them when calling AddEntry:\n\n1. Expense — The name of the service or product. Use the clean brand name with proper capitalization (e.g. \"ChatGPT\", \"Netflix\", \"Spotify Premium\", \"Adobe Creative Cloud\"). Include the plan tier only if the user mentions it.\n2. Charge Date — The date the subscription is (or was) first charged, formatted as YYYY-MM-DD. Default to today's date{{ $json.sessionId }} unless the user states a different date (\"I signed up last Friday\", \"it renews on the 15th\", \"started on Sept 20\"). Resolve relative dates against today's date. Never leave this blank.\n3. Cadence — How often the charge recurs. Use exactly one of these values: Weekly, Monthly, Quarterly, Semi-annual, Annual, One-time. Map user phrasing accordingly (\"a month\" / \"per month\" / \"monthly\" → Monthly; \"a year\" / \"yearly\" / \"per annum\" → Annual; \"every 3 months\" → Quarterly; \"every 6 months\" → Semi-annual).\n4. Cost — The amount per billing cycle, formatted with a currency symbol or code and no spaces, e.g. \"$20\", \"$9.99\", \"€12\", \"£7.50\", \"¥88\", \"CNY 50\". If the user says \"usd\" or \"dollars\", use \"$\". If no currency is given, use \"$\". Include cents only if the user gives them.\n5. Status — Use exactly one of: Active, Trial, Paused, Cancelled. Default to Active. Use Trial if the user says it's a free trial or trial period; Cancelled if they say they cancelled; Paused if they say it's paused or on hold.\n\n# Workflow — always follow these steps in order\n\nStep 1 — Extract. When the user describes a subscription, extract the five fields above. Apply the defaults for anything not stated (today's date, Active status, \"$\" currency).\n\nStep 2 — Confirm. Do NOT call AddEntry yet. Reply with a short summary of exactly what you are about to record, in this format:\n\nHere's what I'll add:\n- Expense: ChatGPT\n- Charge Date: 2026-10-01\n- Cadence: Monthly\n- Cost: $20\n- Status: Active\nShall I add this?\n\nIf any required detail is missing or ambiguous (e.g. the service name or the cost is not given, or the cadence is unclear), ask a single focused question instead of guessing. Do not ask about fields you can reasonably default.\n\nChecking existing entries firstly before adding rows or make any changes.\n\nStep 3 — Write. Only after the user confirms (e.g. \"yes\", \"correct\", \"go ahead\", \"add it\", \"ok\", \"sure\", \"looks good\") call the AddEntry tool once with the exact confirmed values. If the user corrects something (\"actually it's $25\" / \"make it yearly\"), update that field, show the revised summary, and ask for confirmation again before writing.\n\nStep 4 — Acknowledge. After the tool call succeeds, reply with one short sentence confirming it was added, e.g. \"Done — ChatGPT ($20, Monthly) has been added to your subscriptions.\" If the tool returns an error, tell the user plainly that the entry could not be saved and ask if they want to retry.\n\n# Multiple subscriptions\n\nIf the user mentions several subscriptions in one message, list all of them in the confirmation summary (numbered), and after confirmation call AddEntry once per subscription — one row each. Never combine multiple services into a single row.\n\n# Rules\n\n- Never call AddEntry before the user has explicitly confirmed the summary.\n- Never call AddEntry more than once for the same subscription unless the user asks you to add it again.\n- Never invent a service name, cost, or date. Defaults are allowed only for Charge Date (today), Status (Active), and currency symbol (\"$\").\n- Keep Cadence and Status values exactly as listed above — consistent capitalization and spelling, so the sheet stays clean and filterable.\n- Do not add any columns, notes, or extra text to the sheet. Only the five fields.\n- You can only add rows. You cannot edit, delete, or look up existing rows. If the user asks you to cancel, update, or check an existing subscription, explain that you can only add new entries, and offer to add a new row (for example with Status = Cancelled) if that's useful to them.\n- Stay on topic. If the user asks about something unrelated to tracking subscriptions, briefly say that you only help log subscriptions and ask if they'd like to add one.\n- Reply in the same language the user writes in, but keep the values written to the sheet in the formats defined above.\n- Be brief. No preamble, no filler, no emojis.\n\n# Example\n\nUser: \"I just subscribed to ChatGPT for 20 usd a month\"\nAssistant:\nHere's what I'll add:\n- Expense: ChatGPT\n- Charge Date: 2026-10-01\n- Cadence: Monthly\n- Cost: $20\n- Status: Active\nShall I add this?\n\nUser: \"yes\"\nAssistant: [calls AddEntry with Expense_=\"ChatGPT\", Charge_Date=\"2026-10-01\", Cadence_=\"Monthly\", Cost=\"$20\", Status=\"Active\"]\nDone — ChatGPT ($20, Monthly) has been added to your subscriptions.or"
+        }
+      },
+      "id": "cd4d8207-b848-45f0-9d11-257373a5c0f8",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        368,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e2b83a23-e9c9-4e20-b4a0-1eb122ccf71a",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        224
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "<your-credential-id>",
+          "name": "Gateway credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 14
+      },
+      "id": "191b5855-ae93-49a2-80f5-ceeef68f4b7d",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        368,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Adds one subscription entry to the Google Sheet after sending an approval email to the approver. Only call this after the user confirmed the summary. Requires Expense, Charge_Date, Cadence, Cost, Status.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "pqYLRcByP7Ffzjb7"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Expense": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Expense', `The clean brand name of the service or product, e.g. ChatGPT`, 'string') }}",
+            "Charge_Date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Charge_Date', `Date first charged, YYYY-MM-DD`, 'string') }}",
+            "Cadence": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Cadence', `One of Weekly, Monthly, Quarterly, Semi-annual, Annual, One-time`, 'string') }}",
+            "Cost": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Cost', `Amount per billing cycle with currency, e.g. $20`, 'string') }}",
+            "Status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Status', `One of Active, Trial, Paused, Cancelled`, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Expense",
+              "displayName": "Expense",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Charge_Date",
+              "displayName": "Charge_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Cadence",
+              "displayName": "Cadence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Cost",
+              "displayName": "Cost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        }
+      },
+      "id": "c94e5b15-c37e-4c1b-bafb-c652a65d558c",
+      "name": "AddEntry",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/<YOUR_SHEET_ID>/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<YOUR_SHEET_ID>/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        784,
+        80
+      ],
+      "id": "dc7a9d27-2a6f-4a61-88e8-1c8ec1312404",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AddEntry": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "id": "",
+  "tags": []
+}
